@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Buddy Quiz — Single File (Webcam + Mandatory Screen Share)</title>
+<style>
+  :root{--bg:#071127;--card:#0b1624;--accent1:#60a5fa;--accent2:#06b6d4;--muted:#9fb0c9}
+  *{box-sizing:border-box;font-family:Inter,system-ui,Arial,Helvetica,sans-serif}
+  body{margin:0;min-height:100vh;background:linear-gradient(180deg,#021124,#041528);color:#e6eef8;padding:18px}
+  .wrap{max-width:1000px;margin:0 auto}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.03);margin-bottom:12px}
+  h1{margin:0 0 6px 0}
+  label{display:block;color:var(--muted);font-size:13px;margin-bottom:6px}
+  input,select,button{font:inherit}
+  input,select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit;margin-bottom:8px}
+  button{background:linear-gradient(90deg,var(--accent1),var(--accent2));border:none;padding:9px 10px;border-radius:8px;color:#031124;cursor:pointer}
+  .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit}
+  .small{font-size:13px;color:var(--muted)}
+  .cols{display:grid;grid-template-columns:320px 1fr;gap:12px}
+  @media(max-width:880px){ .cols{grid-template-columns:1fr} }
+  .hidden{display:none}
+  video,img{border-radius:8px;border:1px solid rgba(255,255,255,0.04);max-width:100%}
+  .options{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+  .opt{padding:10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);cursor:pointer;text-align:left}
+  .opt.correct{background:rgba(22,163,74,0.9);color:#fff}
+  .opt.wrong{background:rgba(239,68,68,0.9);color:#fff}
+  .timerbar{width:160px;height:8px;background:rgba(255,255,255,0.03);border-radius:999px;overflow:hidden}
+  .timerfill{height:100%;width:0;background:linear-gradient(90deg,var(--accent2),var(--accent1))}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{padding:8px;text-align:left;border-bottom:1px dashed rgba(255,255,255,0.03);font-size:14px}
+  th{color:#93c5fd}
+  .note{font-size:13px;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <div>
+      <h1>Buddy Quiz</h1>
+      <div class="small"> Buddy quiz (webcam + mandatory screen share)</div>
+    </div>
+    <div id="signed" class="small">Not signed in</div>
+  </div>
+
+  <div class="cols">
+    <!-- Left column: Auth -->
+    <div class="card">
+      <div id="loginView">
+        <h3>Login</h3>
+        <label>Username</label>
+        <input id="loginUser" placeholder="username">
+        <label>Password</label>
+        <input id="loginPass" type="password">
+        <div style="display:flex;gap:8px">
+          <button id="btnLogin">Login</button>
+          <button id="btnShowCreate" class="btn-ghost">Create</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center;justify-content:space-between">
+          <div class="small muted">Forgot password?</div>
+          <button id="btnShowForgot" class="btn-ghost">Recover</button>
+        </div>
+      </div>
+
+      <div id="createView" class="hidden">
+        <h3>Create Account</h3>
+        <label>Username</label><input id="createUser" placeholder="choose username">
+        <label>Password (min 4)</label><input id="createPass" type="password">
+        <label>Security question</label>
+        <select id="createQ">
+          <option value="pet">Your pet's name?</option>
+          <option value="school">First school's name?</option>
+          <option value="city">City you were born?</option>
+        </select>
+        <label>Security answer</label><input id="createA" placeholder="answer">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="btnCreate">Create</button>
+          <button id="btnBackLogin" class="btn-ghost">Back</button>
+        </div>
+      </div>
+
+      <div id="forgotView" class="hidden">
+        <h3>Recover password</h3>
+        <label>Username</label><input id="forgotUser" placeholder="username">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="btnStartRecover">Start</button>
+          <button id="btnCancelRecover" class="btn-ghost">Cancel</button>
+        </div>
+      </div>
+
+      <div id="resetView" class="hidden">
+        <h3>Reset password</h3>
+        <div id="resetQ" class="small muted"></div>
+        <label>Answer</label><input id="resetA" placeholder="answer">
+        <label>New password</label><input id="resetNew" type="password">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="btnApplyReset">Apply</button>
+          <button id="btnCancelReset" class="btn-ghost">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column: User / Quiz / Participation -->
+    <div>
+      <div id="userPanel" class="card hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div id="welcome" style="font-weight:700"></div>
+            <div id="last" class="small muted"></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button id="btnStart" title="Start quiz — will request webcam and required screen share">Start Quiz</button>
+            <button id="btnViewParts" class="btn-ghost">View Participation</button>
+            <button id="btnSignOut" class="btn-ghost">Logout</button>
+          </div>
+        </div>
+
+        <div id="quizArea" class="hidden" style="margin-top:12px">
+          <div style="display:flex;gap:12px">
+            <div style="width:320px">
+              <div class="small muted">Webcam preview</div>
+              <video id="videoWebcam" autoplay muted playsinline style="width:100%;height:220px;background:#000"></video>
+              <div style="margin-top:8px" class="note">Webcam is required and will be captured periodically.</div>
+            </div>
+
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div id="qText" style="font-weight:700"></div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="small muted" id="timeLeft">15s</div>
+                  <div class="timerbar"><div id="timerFill" class="timerfill"></div></div>
+                </div>
+              </div>
+
+              <div class="options" id="optionsList"></div>
+
+              <div style="display:flex;justify-content:space-between;margin-top:10px">
+                <div class="small muted" id="progress"></div>
+                <div style="display:flex;gap:8px">
+                  <button id="btnQuit" class="btn-ghost">Quit</button>
+                  <button id="btnNext">Next</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="note">Screen sharing is required — the quiz will not proceed without it. Snapshots (webcam & screen) are saved locally for participation records.</div>
+        </div>
+      </div>
+
+      <div id="partsPanel" class="card hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3>Participation List</h3>
+          <div>
+            <button id="btnBack" class="btn-ghost">Back</button>
+            <button id="btnClear" class="btn-ghost">Clear All</button>
+          </div>
+        </div>
+        <table id="partsTable">
+          <thead><tr><th>User</th><th>Score</th><th>Date</th><th>Webcam</th><th>Screen</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div id="landing" class="card">
+        <h3>How it works</h3>
+        <div class="small muted">Create an account, login, then press "Start Quiz". Quiz runs fullscreen. Webcam and Screen Share are required and snapshots are saved locally (demo).</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Check if running in a browser that supports modern features
+
+/* Questions (your list) */
+const questions = [
+  {numb:1, question:"What does HTML stand for?", answer:"Hyper Text Markup Language", options:["Hyper Text Preprocessor","Hyper Text Markup Language","Hyper Text Multiple Language","Hyper Tool Multi Language"]},
+  {numb:2, question:"What does CSS stand for?", answer:"Cascading Style Sheet", options:["Common Style Sheet","Colorful Style Sheet","Computer Style Sheet","Cascading Style Sheet"]},
+  {numb:3, question:"What does PHP stand for?", answer:"Hypertext Preprocessor", options:["Hypertext Preprocessor","Hypertext Programming","Hypertext Preprogramming","Hometext Preprocessor"]},
+  {numb:4, question:"What does SQL stand for?", answer:"Structured Query Language", options:["Stylish Question Language","Stylesheet Query Language","Statement Question Language","Structured Query Language"]},
+  {numb:5, question:"What does XML stand for?", answer:"eXtensible Markup Language", options:["eXtensible Markup Language","eXecutable Multiple Language","eXTra Multi-Program Language","eXamine Multiple Language"]}
+];
+
+/* Storage keys */
+const LS_USERS = 'bq_users_v4';
+const LS_PARTS = 'bq_participations_v4';
+const LS_SNAPS = 'bq_snaps_v4';
+
+/* helpers */
+const el = id => document.getElementById(id);
+const hide = id => el(id).classList.add('hidden');
+const show = id => el(id).classList.remove('hidden');
+const nowISO = ()=> new Date().toISOString();
+function load(k, fallback){ try{ return JSON.parse(localStorage.getItem(k) || 'null') || fallback; }catch(e){ return fallback; } }
+function save(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+
+/* SHA-256 hex */
+async function sha256hex(s){
+  const enc = new TextEncoder();
+  const buf = enc.encode(s || '');
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/* bootstrap default user if none */
+(async function bootstrap(){
+  let users = load(LS_USERS, []);
+  if(users.length === 0){
+    users.push({ username:'demo', passHash: await sha256hex('demo123'), secQ:'pet', secHash: await sha256hex('fluffy'), created: nowISO() });
+    save(LS_USERS, users);
+  }
+})();
+
+/* App state */
+let currentUser = null;
+let webcamStream = null;
+let screenStream = null;
+let periodicId = null;
+let quizState = { order: [], idx:0, score:0, time:15, timerId:null };
+
+/* View management */
+function showView(v){
+  // hide auth views
+  hide('createView'); hide('forgotView'); hide('resetView'); hide('loginView');
+  hide('userPanel'); hide('partsPanel'); hide('landing');
+  if(v==='login') show('loginView');
+  if(v==='create') show('createView');
+  if(v==='forgot') show('forgotView');
+  if(v==='reset') show('resetView');
+  if(v==='user') show('userPanel');
+  if(v==='parts') show('partsPanel');
+  if(v==='landing') show('landing');
+}
+showView('login');
+
+/* DOM handlers */
+el('btnShowCreate').onclick = ()=> showView('create');
+el('btnBackLogin').onclick = ()=> showView('login');
+el('btnShowForgot').onclick = ()=> showView('forgot');
+el('btnCancelRecover').onclick = ()=> showView('login');
+el('btnCancelReset').onclick = ()=> showView('login');
+
+el('btnCreate').onclick = onCreate;
+el('btnLogin').onclick = onLogin;
+el('btnStartRecover').onclick = startRecover;
+el('btnApplyReset').onclick = applyReset;
+
+el('btnStart').onclick = startQuiz;
+el('btnViewParts').onclick = ()=> { renderParts(); showView('parts'); };
+el('btnBack').onclick = ()=> showView('user');
+el('btnClear').onclick = ()=> { if(confirm('Clear all records?')){ save(LS_PARTS, []); renderParts(); } };
+
+el('btnSignOut').onclick = signOut;
+el('btnQuit').onclick = ()=> { if(confirm('Quit quiz?')) quitQuiz(); };
+el('btnNext').onclick = onNext;
+
+/* Account create */
+async function onCreate(){
+  const username = el('createUser').value.trim();
+  const pass = el('createPass').value;
+  const secQ = el('createQ').value;
+  const secA = el('createA').value.trim();
+  if(!username || !pass || pass.length<4 || !secA){ alert('Fill username, password (min 4) and security answer'); return; }
+  const users = load(LS_USERS, []);
+  if(users.some(u=>u.username.toLowerCase()===username.toLowerCase())){ alert('Username exists'); return; }
+  users.push({ username, passHash: await sha256hex(pass), secQ, secHash: await sha256hex(secA.toLowerCase()), created: nowISO() });
+  save(LS_USERS, users);
+  alert('Account created — you can now login');
+  el('createUser').value=''; el('createPass').value=''; el('createA').value='';
+  showView('login');
+}
+
+/* Login */
+async function onLogin(){
+  const username = el('loginUser').value.trim();
+  const pass = el('loginPass').value;
+  if(!username || !pass){ alert('Enter credentials'); return; }
+  const users = load(LS_USERS, []);
+  const u = users.find(x=>x.username.toLowerCase()===username.toLowerCase());
+  if(!u){ alert('No such user'); return; }
+  const ph = await sha256hex(pass);
+  if(ph !== u.passHash){ alert('Invalid password'); return; }
+  currentUser = u.username;
+  el('signed').textContent = `Signed: ${currentUser}`;
+  el('welcome').textContent = `Hello, ${currentUser}`;
+  el('last').textContent = getLast(currentUser);
+  showView('user');
+  el('loginUser').value=''; el('loginPass').value='';
+}
+
+/* Forgot / Reset */
+let pendingReset = null;
+function startRecover(){
+  const username = el('forgotUser').value.trim();
+  if(!username){ alert('Enter username'); return; }
+  const users = load(LS_USERS, []);
+  const u = users.find(x=>x.username.toLowerCase()===username.toLowerCase());
+  if(!u){ alert('No such user'); return; }
+  pendingReset = u.username;
+  el('resetQ').textContent = `Security question: ${label(u.secQ)}`;
+  showView('reset');
+}
+function label(code){ if(code==='pet') return "What's your pet's name?"; if(code==='school') return "First school's name?"; return "City you were born?"; }
+async function applyReset(){
+  const ans = el('resetA').value.trim().toLowerCase();
+  const newp = el('resetNew').value;
+  if(!pendingReset || !ans || !newp){ alert('Fill fields'); return; }
+  const users = load(LS_USERS, []);
+  const idx = users.findIndex(x=>x.username===pendingReset);
+  if(idx===-1){ alert('User missing'); return; }
+  const sh = await sha256hex(ans);
+  if(sh !== users[idx].secHash){ alert('Wrong answer'); return; }
+  users[idx].passHash = await sha256hex(newp);
+  save(LS_USERS, users);
+  pendingReset = null;
+  alert('Password reset. Please login.');
+  showView('login');
+}
+
+/* Sign out */
+function signOut(){
+  if(!confirm('Sign out?')) return;
+  currentUser = null;
+  el('signed').textContent = 'Not signed in';
+  stopStreams();
+  stopPeriodic();
+  showView('login');
+}
+
+/* Participation storage */
+function getParts(){ return load(LS_PARTS, []); }
+function savePart(r){ const arr = getParts(); arr.push(r); save(LS_PARTS, arr); }
+function renderParts(){
+  const tbody = el('partsTable').querySelector('tbody');
+  const arr = getParts();
+  tbody.innerHTML = '';
+  arr.slice().reverse().forEach(p=>{
+    const tr = document.createElement('tr');
+    const wc = p.webcam ? `<img src="${p.webcam}" style="width:120px;height:80px;object-fit:cover;border-radius:6px"/>` : '—';
+    const sc = p.screen ? `<img src="${p.screen}" style="width:120px;height:80px;object-fit:cover;border-radius:6px"/>` : '—';
+    tr.innerHTML = `<td>${p.user}</td><td>${p.score}/${p.total}</td><td class="small">${new Date(p.date).toLocaleString()}</td><td>${wc}</td><td>${sc}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+/* get last attempt for UI */
+function getLast(username){
+  const arr = getParts().filter(p=>p.user===username);
+  if(!arr.length) return 'No attempts yet';
+  const last = arr[arr.length-1];
+  return `Last: ${last.score}/${last.total} on ${new Date(last.date).toLocaleString()}`;
+}
+
+/* -------------------------
+   Quiz flow
+--------------------------*/
+el('btnStart').onclick = startQuiz;
+let quizTimerFill = el('timerFill');
+
+function startQuiz(){
+  if(!currentUser){ alert('Login first'); return; }
+
+  // Request webcam and screen both — both mandatory
+  Promise.all([
+    navigator.mediaDevices.getUserMedia({ video:true, audio:false }),
+    navigator.mediaDevices.getDisplayMedia({ video:true })
+  ]).then(async ([wStream, sStream])=>{
+    // assign streams
+    webcamStream = wStream;
+    screenStream = sStream;
+
+    // show streams
+    el('videoWebcam').srcObject = webcamStream;
+
+    // start fullscreen
+    if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+    // show quiz area
+    show('quizArea');
+    // hide landing
+    hide('landing');
+    // start periodic snapshot saving
+    startPeriodic();
+    // prepare quiz state & render first question
+    quizState.order = questions.map((_,i)=>i).sort(()=>Math.random()-0.5);
+    quizState.idx = 0; quizState.score = 0;
+    renderQuestion();
+  }).catch(err=>{
+    console.error('Permission error', err);
+    alert('Webcam and Screen Share are both required to start the quiz. Please allow both.');
+  });
+}
+
+/* render question */
+function renderQuestion(){
+  clearInterval(quizState.timerId);
+  const qIndex = quizState.order[quizState.idx];
+  const q = questions[qIndex];
+  el('qText').textContent = `${quizState.idx+1}. ${q.question}`;
+  const list = el('optionsList'); list.innerHTML='';
+  q.options.slice().sort(()=>Math.random()-0.5).forEach(opt=>{
+    const d = document.createElement('div'); d.className='opt'; d.textContent = opt;
+    d.onclick = ()=> selectOpt(d, q.answer);
+    list.appendChild(d);
+  });
+  el('progress').textContent = `${quizState.idx+1} / ${questions.length}`;
+  quizState.time = 15; updateTimer();
+  quizState.timerId = setInterval(()=>{ quizState.time--; updateTimer(); if(quizState.time<=0){ clearInterval(quizState.timerId); revealCorrect(); } }, 1000);
+}
+
+function updateTimer(){ el('timeLeft').textContent = `${quizState.time}s`; quizTimerFill.style.width = Math.max(0,(quizState.time/15)*100) + '%'; }
+
+function selectOpt(node, correct){
+  clearInterval(quizState.timerId);
+  Array.from(el('optionsList').children).forEach(c=> c.style.pointerEvents='none');
+  if(node.textContent === correct){ node.classList.add('correct'); quizState.score++; }
+  else { node.classList.add('wrong'); Array.from(el('optionsList').children).forEach(c=>{ if(c.textContent===correct) c.classList.add('correct'); }); }
+}
+
+function revealCorrect(){
+  const qIndex = quizState.order[quizState.idx];
+  const correct = questions[qIndex].answer;
+  Array.from(el('optionsList').children).forEach(c=>{ c.style.pointerEvents='none'; if(c.textContent===correct) c.classList.add('correct'); });
+}
+
+function onNext(){
+  clearInterval(quizState.timerId);
+  if(quizState.idx < questions.length - 1){ quizState.idx++; renderQuestion(); } else { finishQuiz(); }
+}
+
+function quitQuiz(){
+  stopStreams();
+  stopPeriodic();
+  hide('quizArea');
+  if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  showView('user');
+}
+
+/* finish quiz */
+async function finishQuiz(){
+  stopPeriodic();
+  // capture final webcam + screen snapshots
+  const wc = await captureWebcam().catch(()=>null);
+  const sc = await captureScreen().catch(()=>null);
+  const rec = { user: currentUser, score: quizState.score, total: questions.length, date: nowISO(), webcam: wc, screen: sc };
+  save(LS_PARTS, [...load(LS_PARTS, []), rec]);
+  // also update last snapshots map
+  const snaps = load(LS_SNAPS, {});
+  snaps[currentUser] = { webcam: wc, screen: sc, time: nowISO() };
+  save(LS_SNAPS, snaps);
+
+  alert(`Quiz finished — Score ${quizState.score}/${questions.length}`);
+  stopStreams();
+  hide('quizArea');
+  if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  el('last').textContent = getLast(currentUser);
+  showView('user');
+}
+
+/* -------------------------
+   Webcam / Screen capture helpers
+--------------------------*/
+async function captureWebcam(){
+  if(!webcamStream) return null;
+  const track = webcamStream.getVideoTracks()[0]; if(!track) return null;
+  try{
+    const ic = new ImageCapture(track);
+    const bitmap = await ic.grabFrame();
+    const c = document.createElement('canvas'); c.width = bitmap.width; c.height = bitmap.height;
+    c.getContext('2d').drawImage(bitmap,0,0);
+    return c.toDataURL('image/png');
+  }catch(e){
+    // fallback draw from video element
+    try{ const v = el('videoWebcam'); if(v && v.videoWidth){ const c = document.createElement('canvas'); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext('2d').drawImage(v,0,0); return c.toDataURL('image/png'); }}catch(e2){}
+    return null;
+  }
+}
+async function captureScreen(){
+  if(!screenStream) return null;
+  const track = screenStream.getVideoTracks()[0]; if(!track) return null;
+  try{
+    const ic = new ImageCapture(track);
+    const bitmap = await ic.grabFrame();
+    const c = document.createElement('canvas'); c.width=bitmap.width; c.height=bitmap.height;
+    c.getContext('2d').drawImage(bitmap,0,0);
+    // scale down if huge
+    const maxW=800, maxH=450; let sw=c.width, sh=c.height; let scale=Math.min(1, maxW/sw, maxH/sh);
+    if(scale<1){ const c2=document.createElement('canvas'); c2.width=Math.round(sw*scale); c2.height=Math.round(sh*scale); c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height); return c2.toDataURL('image/png'); }
+    return c.toDataURL('image/png');
+  }catch(e){ return null; }
+}
+
+/* Start / stop streams */
+function stopStreams(){
+  if(webcamStream){ webcamStream.getTracks().forEach(t=>t.stop()); webcamStream=null; el('videoWebcam').srcObject=null; }
+  if(screenStream){ screenStream.getTracks().forEach(t=>t.stop()); screenStream=null; }
+}
+
+/* Periodic snap saving (every 5s) */
+function startPeriodic(){ if(periodicId) clearInterval(periodicId); periodicId = setInterval(async ()=>{
+  const wc = await captureWebcam().catch(()=>null); const sc = await captureScreen().catch(()=>null);
+  if(wc || sc){
+    const snaps = load(LS_SNAPS, {}); snaps[currentUser] = { webcam: wc, screen: sc, time: nowISO() }; save(LS_SNAPS, snaps);
+    // also optionally update participation preview UI
+    renderParts(); // keep list updated (cheap)
+  }
+}, 5000); }
+
+function stopPeriodic(){ if(periodicId){ clearInterval(periodicId); periodicId=null; } }
+
+/* -------------------------
+   Init / helpers
+--------------------------*/
+function renderParts(){ renderPartsTable(); } // alias
+function renderPartsTable(){
+  const tbody = el('partsTable').querySelector('tbody'); const arr = load(LS_PARTS, []);
+  tbody.innerHTML=''; arr.slice().reverse().forEach(p=>{ const tr=document.createElement('tr'); const wc = p.webcam?`<img src="${p.webcam}" style="width:120px;height:80px;object-fit:cover;border-radius:6px"/>`:'—'; const sc = p.screen?`<img src="${p.screen}" style="width:120px;height:80px;object-fit:cover;border-radius:6px"/>`:'—'; tr.innerHTML = `<td>${p.user}</td><td>${p.score}/${p.total}</td><td class="small">${new Date(p.date).toLocaleString()}</td><td>${wc}</td><td>${sc}</td>`; tbody.appendChild(tr); });
+}
+
+
+window.renderParts = renderParts;
+
+/* Done */
+</script>
+</body>
+</html>

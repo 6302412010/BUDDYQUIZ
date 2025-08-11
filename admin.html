@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Buddy Quiz - Admin</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Admin Panel</h1>
+  <button onclick="clearParticipants()">Clear Participation List</button>
+  <ul id="participants"></ul>
+
+  <h2>Live Webcam Feed</h2>
+  <video id="remoteVideo" autoplay playsinline></video>
+
+  <h2>Live Screen Share</h2>
+  <video id="remoteScreen" autoplay playsinline></video>
+
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="webrtc.js"></script>
+  <script>
+    if (localStorage.getItem("role") !== "admin") {
+      alert("Unauthorized!");
+      window.location.href = "index.html";
+    }
+
+    function clearParticipants() {
+      localStorage.removeItem("participants");
+      document.getElementById("participants").innerHTML = "";
+    }
+
+    function loadParticipants() {
+      let list = JSON.parse(localStorage.getItem("participants")) || [];
+      document.getElementById("participants").innerHTML = list.map(p => `<li>${p}</li>`).join("");
+    }
+
+    loadParticipants();
+    startAdminView();
+  </script>
+</body>
+</html>
